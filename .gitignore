@@ -1,0 +1,43 @@
+# Environment variables
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Data and logs
+data/chroma/*
+!data/chroma/.gitkeep
+logs/trulens/*
+!logs/trulens/.gitkeep
+
+# Models
+*.pkl
+*.joblib
+*.h5
+*.pb
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+.dockerignore
+
+# Grafana
+grafana-data/
+
+# Prometheus
+prometheus-data/

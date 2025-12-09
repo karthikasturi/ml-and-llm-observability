@@ -1,0 +1,257 @@
+{
+  "dashboard": {
+    "title": "Combined Pipeline Health",
+    "tags": ["pipeline", "ml-llm", "combined", "stage5"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 0,
+    "refresh": "10s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "End-to-End Triage Latency",
+        "type": "graph",
+        "gridPos": {"h": 9, "w": 12, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(triage_latency_seconds_bucket[5m]))",
+            "legendFormat": "p50",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(triage_latency_seconds_bucket[5m]))",
+            "legendFormat": "p95",
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(triage_latency_seconds_bucket[5m]))",
+            "legendFormat": "p99",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          {"format": "s", "label": "Latency"},
+          {"format": "short"}
+        ],
+        "alert": {
+          "conditions": [
+            {
+              "evaluator": {"params": [10.0], "type": "gt"},
+              "query": {"params": ["B", "5m", "now"]},
+              "reducer": {"params": [], "type": "avg"},
+              "type": "query"
+            }
+          ],
+          "name": "High Pipeline Latency"
+        }
+      },
+      {
+        "id": 2,
+        "title": "Triage Request Rate",
+        "type": "graph",
+        "gridPos": {"h": 9, "w": 12, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "sum(rate(triage_requests_total[1m])) by (severity, status)",
+            "legendFormat": "{{severity}} - {{status}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "reqps", "label": "Requests/sec"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Success vs Error Rate",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 9},
+        "targets": [
+          {
+            "expr": "sum(rate(triage_requests_total{status=\"success\"}[5m]))",
+            "legendFormat": "Success",
+            "refId": "A"
+          },
+          {
+            "expr": "sum(rate(triage_requests_total{status=\"error\"}[5m]))",
+            "legendFormat": "Error",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"format": "reqps"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Error Rate Percentage",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 9},
+        "targets": [
+          {
+            "expr": "(sum(rate(triage_requests_total{status=\"error\"}[5m])) / sum(rate(triage_requests_total[5m]))) * 100",
+            "legendFormat": "Error %",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "percent", "label": "Error Rate", "max": 100, "min": 0},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 5,
+        "title": "ML-LLM Correlation Score",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 17},
+        "targets": [
+          {
+            "expr": "triage_ml_llm_correlation",
+            "legendFormat": "Correlation",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "Score", "max": 1.0, "min": 0},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Severity Distribution",
+        "type": "piechart",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 17},
+        "targets": [
+          {
+            "expr": "sum by(severity) (increase(triage_requests_total{status=\"success\"}[1h]))",
+            "legendFormat": "{{severity}}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Component Latency Breakdown",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 25},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(ml_prediction_latency_seconds_bucket[5m]))",
+            "legendFormat": "ML Prediction (p95)",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(llm_request_latency_seconds_bucket[5m]))",
+            "legendFormat": "LLM Response (p95)",
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(triage_latency_seconds_bucket[5m]))",
+            "legendFormat": "Total Pipeline (p95)",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          {"format": "s", "label": "Latency"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Total Requests (24h)",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 33},
+        "targets": [
+          {
+            "expr": "sum(increase(triage_requests_total[24h]))",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "graphMode": "area",
+          "colorMode": "value"
+        }
+      },
+      {
+        "id": 9,
+        "title": "Success Rate (24h)",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 33},
+        "targets": [
+          {
+            "expr": "(sum(increase(triage_requests_total{status=\"success\"}[24h])) / sum(increase(triage_requests_total[24h]))) * 100",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "graphMode": "area",
+          "colorMode": "value"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 90, "color": "yellow"},
+                {"value": 95, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 10,
+        "title": "Avg Pipeline Latency (1h)",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 33},
+        "targets": [
+          {
+            "expr": "avg(rate(triage_latency_seconds_sum[1h]) / rate(triage_latency_seconds_count[1h]))",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "graphMode": "area",
+          "colorMode": "value"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s"
+          }
+        }
+      },
+      {
+        "id": 11,
+        "title": "Active Alerts",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 33},
+        "targets": [
+          {
+            "expr": "count(ALERTS{alertstate=\"firing\"})",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "graphMode": "none",
+          "colorMode": "value"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 1, "color": "yellow"},
+                {"value": 3, "color": "red"}
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}

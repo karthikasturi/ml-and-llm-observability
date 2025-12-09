@@ -1,0 +1,148 @@
+global:
+  resolve_timeout: 5m
+  slack_api_url: '${SLACK_WEBHOOK_URL}'
+
+# Route tree
+route:
+  receiver: 'console-default'
+  group_by: ['alertname', 'service']
+  group_wait: 10s
+  group_interval: 5m
+  repeat_interval: 4h
+  
+  routes:
+    # Critical alerts - Slack + Email
+    - match:
+        severity: critical
+      receiver: 'critical-alerts'
+      continue: false
+      
+    # Warning alerts - Slack only (throttled)
+    - match:
+        severity: warning
+      receiver: 'warning-alerts'
+      group_wait: 30s
+      repeat_interval: 12h
+      
+    # Info alerts - Console only
+    - match:
+        severity: info
+      receiver: 'console-default'
+
+# Receivers
+receivers:
+  # Default console logging
+  - name: 'console-default'
+    webhook_configs:
+      - url: 'http://alertmanager:9093/api/v1/console'
+        send_resolved: true
+
+  # Critical alerts - Multiple channels
+  - name: 'critical-alerts'
+    slack_configs:
+      - channel: '#ml-llm-alerts'
+        username: 'AlertBot'
+        icon_emoji: ':rotating_light:'
+        title: '🔴 [{{ .GroupLabels.severity | toUpper }}] {{ .GroupLabels.alertname }}'
+        text: |-
+          {{ range .Alerts }}
+          *Service:* {{ .Labels.service }}
+          *Alert:* {{ .Labels.alertname }}
+          *Severity:* {{ .Labels.severity }}
+          
+          *Summary:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          
+          *Started:* {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+          {{ if .EndsAt }}*Ended:* {{ .EndsAt.Format "2006-01-02 15:04:05" }}{{ end }}
+          
+          <http://localhost:9090/alerts|View in Prometheus> | <http://localhost:3000|Grafana Dashboards>
+          {{ end }}
+        send_resolved: true
+        
+    email_configs:
+      - to: '${ALERT_EMAIL}'
+        from: '${SMTP_FROM}'
+        smarthost: '${SMTP_HOST}:${SMTP_PORT}'
+        auth_username: '${SMTP_USERNAME}'
+        auth_password: '${SMTP_PASSWORD}'
+        headers:
+          Subject: '[{{ .GroupLabels.severity | toUpper }}] {{ .GroupLabels.alertname }} - {{ .GroupLabels.service }}'
+        html: |-
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <style>
+              body { font-family: Arial, sans-serif; }
+              .alert-critical { background-color: #ff4444; color: white; padding: 10px; }
+              .alert-warning { background-color: #ffaa00; color: white; padding: 10px; }
+              .details { background-color: #f5f5f5; padding: 15px; margin: 10px 0; }
+              .metric { font-weight: bold; color: #333; }
+            </style>
+          </head>
+          <body>
+            <div class="alert-{{ .GroupLabels.severity }}">
+              <h2>🔴 {{ .GroupLabels.alertname }}</h2>
+              <p><strong>Service:</strong> {{ .GroupLabels.service }}</p>
+              <p><strong>Severity:</strong> {{ .GroupLabels.severity }}</p>
+            </div>
+            
+            {{ range .Alerts }}
+            <div class="details">
+              <h3>Alert Details</h3>
+              <p><span class="metric">Summary:</span> {{ .Annotations.summary }}</p>
+              <p><span class="metric">Description:</span> {{ .Annotations.description }}</p>
+              <p><span class="metric">Started:</span> {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}</p>
+              {{ if .EndsAt }}<p><span class="metric">Resolved:</span> {{ .EndsAt.Format "2006-01-02 15:04:05 MST" }}</p>{{ end }}
+              
+              <h4>Labels</h4>
+              <ul>
+              {{ range .Labels.SortedPairs }}
+                <li><strong>{{ .Name }}:</strong> {{ .Value }}</li>
+              {{ end }}
+              </ul>
+              
+              <h4>Quick Links</h4>
+              <ul>
+                <li><a href="http://localhost:9090/alerts">Prometheus Alerts</a></li>
+                <li><a href="http://localhost:3000">Grafana Dashboards</a></li>
+              </ul>
+            </div>
+            {{ end }}
+          </body>
+          </html>
+        send_resolved: true
+
+  # Warning alerts - Slack only
+  - name: 'warning-alerts'
+    slack_configs:
+      - channel: '#ml-llm-alerts'
+        username: 'AlertBot'
+        icon_emoji: ':warning:'
+        title: '🟡 [WARNING] {{ .GroupLabels.alertname }}'
+        text: |-
+          {{ range .Alerts }}
+          *Service:* {{ .Labels.service }}
+          *Alert:* {{ .Labels.alertname }}
+          
+          {{ .Annotations.summary }}
+          
+          <http://localhost:9090/alerts|View Details>
+          {{ end }}
+        send_resolved: true
+
+# Inhibition rules
+inhibit_rules:
+  # Critical alerts inhibit warnings for same service
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['service', 'alertname']
+    
+  # API down inhibits all other alerts for that service
+  - source_match_re:
+      alertname: '.*APIDown'
+    target_match_re:
+      alertname: '.*'
+    equal: ['service']

@@ -1,0 +1,215 @@
+{
+  "dashboard": {
+    "title": "LLM Quality Metrics",
+    "tags": ["llm", "quality", "trulens", "stage5"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 0,
+    "refresh": "10s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "LLM Request Rate",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "rate(llm_requests_total[1m])",
+            "legendFormat": "{{status}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "reqps", "label": "Requests/sec"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 2,
+        "title": "LLM Response Latency (Percentiles)",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(llm_request_latency_seconds_bucket[5m]))",
+            "legendFormat": "p50",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(llm_request_latency_seconds_bucket[5m]))",
+            "legendFormat": "p95",
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(llm_request_latency_seconds_bucket[5m]))",
+            "legendFormat": "p99",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          {"format": "s", "label": "Latency"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Relevance Score Trend",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 8, "x": 0, "y": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(llm_relevance_score_bucket[5m]))",
+            "legendFormat": "Median Relevance",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.90, rate(llm_relevance_score_bucket[5m]))",
+            "legendFormat": "p90 Relevance",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "Score", "max": 1.0, "min": 0},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Hallucination Score Trend",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 8, "x": 8, "y": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(llm_hallucination_score_bucket[5m]))",
+            "legendFormat": "Median Hallucination",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.90, rate(llm_hallucination_score_bucket[5m]))",
+            "legendFormat": "p90 Hallucination",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "Score", "max": 1.0, "min": 0},
+          {"format": "short"}
+        ],
+        "alert": {
+          "conditions": [
+            {
+              "evaluator": {"params": [0.7], "type": "gt"},
+              "operator": {"type": "and"},
+              "query": {"params": ["B", "5m", "now"]},
+              "reducer": {"params": [], "type": "avg"},
+              "type": "query"
+            }
+          ],
+          "name": "High Hallucination Alert"
+        }
+      },
+      {
+        "id": 5,
+        "title": "Groundedness Score Trend",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 8, "x": 16, "y": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(llm_groundedness_score_bucket[5m]))",
+            "legendFormat": "Median Groundedness",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.90, rate(llm_groundedness_score_bucket[5m]))",
+            "legendFormat": "p90 Groundedness",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "Score", "max": 1.0, "min": 0},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Quality Score Heatmap",
+        "type": "heatmap",
+        "gridPos": {"h": 10, "w": 12, "x": 0, "y": 16},
+        "targets": [
+          {
+            "expr": "llm_relevance_score",
+            "format": "heatmap",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Embedding Drift Score",
+        "type": "graph",
+        "gridPos": {"h": 10, "w": 12, "x": 12, "y": 16},
+        "targets": [
+          {
+            "expr": "llm_embedding_drift_score",
+            "legendFormat": "Embedding Drift",
+            "refId": "A"
+          },
+          {
+            "expr": "llm_query_diversity",
+            "legendFormat": "Query Diversity",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "Score"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Average Quality Score",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 26},
+        "targets": [
+          {
+            "expr": "llm_avg_quality_score",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "graphMode": "area",
+          "colorMode": "value"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "min": 0,
+            "max": 1,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 0.5, "color": "yellow"},
+                {"value": 0.7, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 9,
+        "title": "Knowledge Base Size",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 26},
+        "targets": [
+          {
+            "expr": "llm_knowledge_base_size",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "graphMode": "none",
+          "colorMode": "value"
+        }
+      }
+    ]
+  }
+}

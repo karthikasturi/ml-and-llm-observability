@@ -1,0 +1,177 @@
+groups:
+  - name: ml_service_alerts
+    interval: 30s
+    rules:
+      # Critical: ML Model Drift
+      - alert: MLModelDriftHigh
+        expr: ml_data_drift_score > 0.5
+        for: 5m
+        labels:
+          severity: critical
+          service: ml-api
+        annotations:
+          summary: "ML model experiencing significant data drift"
+          description: "ML drift score is {{ $value }}, which exceeds the threshold of 0.5. This indicates the input data distribution has changed significantly."
+          
+      # Warning: ML Latency
+      - alert: MLLatencyHigh
+        expr: histogram_quantile(0.95, rate(ml_prediction_latency_seconds_bucket[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: ml-api
+        annotations:
+          summary: "ML API 95th percentile latency is high"
+          description: "95th percentile latency is {{ $value }}s, which is above 100ms threshold."
+          
+      # Critical: ML API Down
+      - alert: MLAPIDown
+        expr: up{job="ml-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: ml-api
+        annotations:
+          summary: "ML API is down"
+          description: "The ML inference API has been unreachable for more than 1 minute."
+          
+      # Warning: High ML Error Rate
+      - alert: MLErrorRateHigh
+        expr: rate(ml_prediction_errors_total[5m]) > 0.05
+        for: 3m
+        labels:
+          severity: warning
+          service: ml-api
+        annotations:
+          summary: "ML API error rate is high"
+          description: "Error rate is {{ $value }} errors/sec over the last 5 minutes."
+
+  - name: llm_service_alerts
+    interval: 30s
+    rules:
+      # Critical: High Hallucination Rate
+      - alert: LLMHallucinationCritical
+        expr: histogram_quantile(0.90, rate(llm_hallucination_score_bucket[5m])) > 0.7
+        for: 5m
+        labels:
+          severity: critical
+          service: llm-rag-api
+        annotations:
+          summary: "LLM hallucination rate is critically high"
+          description: "90th percentile hallucination score is {{ $value }}, exceeding 0.7 threshold. The LLM may be generating unreliable responses."
+          
+      # Warning: Low Relevance
+      - alert: LLMRelevanceLow
+        expr: histogram_quantile(0.50, rate(llm_relevance_score_bucket[5m])) < 0.5
+        for: 10m
+        labels:
+          severity: warning
+          service: llm-rag-api
+        annotations:
+          summary: "LLM relevance scores are low"
+          description: "Median relevance score is {{ $value }}, below 0.5 threshold. Context retrieval may not be working effectively."
+          
+      # Critical: LLM API Down
+      - alert: LLMAPIDown
+        expr: up{job="llm-rag-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: llm-rag-api
+        annotations:
+          summary: "LLM RAG API is down"
+          description: "The LLM RAG API has been unreachable for more than 1 minute."
+          
+      # Warning: High LLM Latency
+      - alert: LLMLatencyHigh
+        expr: histogram_quantile(0.95, rate(llm_request_latency_seconds_bucket[5m])) > 5.0
+        for: 5m
+        labels:
+          severity: warning
+          service: llm-rag-api
+        annotations:
+          summary: "LLM API 95th percentile latency is high"
+          description: "95th percentile latency is {{ $value }}s, which exceeds 5s threshold."
+          
+      # Warning: Embedding Drift
+      - alert: LLMEmbeddingDriftHigh
+        expr: llm_embedding_drift_score > 0.8
+        for: 10m
+        labels:
+          severity: warning
+          service: llm-rag-api
+        annotations:
+          summary: "LLM embedding space drift detected"
+          description: "Embedding drift score is {{ $value }}, indicating query patterns have changed significantly."
+
+  - name: combined_pipeline_alerts
+    interval: 30s
+    rules:
+      # Critical: Combined Pipeline Latency
+      - alert: PipelineLatencyHigh
+        expr: histogram_quantile(0.95, rate(triage_latency_seconds_bucket[5m])) > 10.0
+        for: 5m
+        labels:
+          severity: critical
+          service: combined-pipeline
+        annotations:
+          summary: "Combined ML+LLM pipeline latency is critically high"
+          description: "95th percentile end-to-end latency is {{ $value }}s, exceeding 10s threshold."
+          
+      # Critical: High Triage Error Rate
+      - alert: TriageErrorRateHigh
+        expr: rate(triage_requests_total{status="error"}[5m]) / rate(triage_requests_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+          service: combined-pipeline
+        annotations:
+          summary: "Triage endpoint error rate is high"
+          description: "Error rate is {{ $value | humanizePercentage }}, exceeding 10% threshold."
+          
+      # Warning: Low Request Rate
+      - alert: LowRequestRate
+        expr: rate(triage_requests_total[5m]) < 0.01
+        for: 15m
+        labels:
+          severity: warning
+          service: combined-pipeline
+        annotations:
+          summary: "Unusually low request rate detected"
+          description: "Request rate is {{ $value }} req/sec, which may indicate a problem with upstream systems."
+          
+      # Info: ML-LLM Correlation Low
+      - alert: MLLLMCorrelationLow
+        expr: triage_ml_llm_correlation < 0.5
+        for: 10m
+        labels:
+          severity: info
+          service: combined-pipeline
+        annotations:
+          summary: "ML-LLM correlation is low"
+          description: "Correlation score is {{ $value }}, indicating ML confidence and LLM quality may be misaligned."
+
+  - name: system_health_alerts
+    interval: 60s
+    rules:
+      # Critical: Prometheus Down
+      - alert: PrometheusDown
+        expr: up{job="prometheus"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: prometheus
+        annotations:
+          summary: "Prometheus is down"
+          description: "Prometheus monitoring system is unreachable."
+          
+      # Warning: High Scrape Duration
+      - alert: HighScrapeDuration
+        expr: scrape_duration_seconds > 1.0
+        for: 5m
+        labels:
+          severity: warning
+          service: prometheus
+        annotations:
+          summary: "Prometheus scrape duration is high"
+          description: "Scraping {{ $labels.job }} is taking {{ $value }}s, which exceeds 1s threshold."
